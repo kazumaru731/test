@@ -334,32 +334,57 @@ function removeParticipant(index) {
     renderParticipants();
 }
 
-// 完全順列（derangement）を生成：自分以外の人に必ず当たる
-function generateDerangement(arr) {
-    if (arr.length < 2) {
-        return null;
+// あみだくじをたどって結果を計算
+function traceAmidakuji(startCol, lines, numCols) {
+    let currentCol = startCol;
+
+    for (const line of lines) {
+        if (currentCol === line.startCol) {
+            currentCol = line.endCol;
+        } else if (currentCol === line.endCol) {
+            currentCol = line.startCol;
+        }
     }
 
-    let attempts = 0;
+    return currentCol;
+}
+
+// 完全順列になるあみだくじを生成
+function generateDerangementAmidakuji(n) {
     const maxAttempts = 1000;
+    let attempts = 0;
 
     while (attempts < maxAttempts) {
-        const shuffled = [...arr];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        // 横線をランダムに生成
+        const lines = [];
+        const horizontalLinesCount = Math.max(10, n * 2);
+
+        for (let i = 0; i < horizontalLinesCount; i++) {
+            const startCol = Math.floor(Math.random() * (n - 1));
+            lines.push({
+                startCol,
+                endCol: startCol + 1
+            });
         }
 
+        // 各列からたどった結果を計算
+        const results = [];
+        for (let i = 0; i < n; i++) {
+            results[i] = traceAmidakuji(i, lines, n);
+        }
+
+        // 完全順列かチェック（誰も自分自身に当たっていない）
         let isDerangement = true;
-        for (let i = 0; i < arr.length; i++) {
-            if (arr[i] === shuffled[i]) {
+        for (let i = 0; i < n; i++) {
+            if (i === results[i]) {
                 isDerangement = false;
                 break;
             }
         }
 
         if (isDerangement) {
-            return shuffled;
+            // 完全順列が見つかった
+            return { lines, results };
         }
 
         attempts++;
@@ -388,17 +413,20 @@ function startAmidakuji() {
         return;
     }
 
-    assignments = generateDerangement(participants);
+    const amidakujiData = generateDerangementAmidakuji(participants.length);
 
-    if (!assignments) {
-        alert('割り当ての生成に失敗しました。もう一度お試しください。');
+    if (!amidakujiData) {
+        alert('あみだくじの生成に失敗しました。もう一度お試しください。');
         return;
     }
+
+    // 結果のマッピングを保存
+    assignments = amidakujiData.results;
 
     document.querySelector('.input-section').style.display = 'none';
     canvasSection.style.display = 'block';
 
-    drawAmidakuji(participants, assignments);
+    drawAmidakuji(participants, amidakujiData.lines);
     createChoiceButtons();
 }
 
@@ -418,7 +446,7 @@ function createChoiceButtons() {
 }
 
 // あみだくじを描画
-function drawAmidakuji(start, end) {
+function drawAmidakuji(start, lines) {
     const n = start.length;
     const size = calculateCanvasSize(n);
     canvas.width = size.width;
@@ -428,7 +456,6 @@ function drawAmidakuji(start, end) {
     const lineSpacing = (size.width - 2 * padding) / (n - 1);
     const verticalStart = 60;
     const verticalEnd = size.height - 60;
-    const horizontalLinesCount = 10;
 
     // 設定を保存
     canvasConfig = {
@@ -436,44 +463,27 @@ function drawAmidakuji(start, end) {
         padding,
         lineSpacing,
         verticalStart,
-        verticalEnd,
-        horizontalLinesCount
+        verticalEnd
     };
 
-    // 横線データを生成
+    // 横線にY座標を割り当て
     horizontalLinesData = [];
-    const horizontalSpacing = (verticalEnd - verticalStart) / (horizontalLinesCount + 1);
+    const horizontalSpacing = (verticalEnd - verticalStart) / (lines.length + 1);
 
-    for (let i = 1; i <= horizontalLinesCount; i++) {
-        const y = verticalStart + i * horizontalSpacing;
-        const startCol = Math.floor(Math.random() * (n - 1));
+    lines.forEach((line, index) => {
         horizontalLinesData.push({
-            y,
-            startCol,
-            endCol: startCol + 1
+            y: verticalStart + (index + 1) * horizontalSpacing,
+            startCol: line.startCol,
+            endCol: line.endCol
         });
-    }
-
-    // 追加の横線
-    for (let i = 1; i <= horizontalLinesCount; i++) {
-        const y = verticalStart + i * horizontalSpacing + horizontalSpacing / 2;
-        const startCol = Math.floor(Math.random() * (n - 1));
-        horizontalLinesData.push({
-            y,
-            startCol,
-            endCol: startCol + 1
-        });
-    }
-
-    // 横線をY座標でソート
-    horizontalLinesData.sort((a, b) => a.y - b.y);
+    });
 
     // 描画
-    redrawCanvas(start, end);
+    redrawCanvas(start);
 }
 
 // キャンバスを再描画
-function redrawCanvas(start, end, highlightCol = -1, currentY = -1) {
+function redrawCanvas(start, highlightCol = -1, currentY = -1) {
     const { n, padding, lineSpacing, verticalStart, verticalEnd } = canvasConfig;
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -498,9 +508,10 @@ function redrawCanvas(start, end, highlightCol = -1, currentY = -1) {
         ctx.lineTo(x, verticalEnd);
         ctx.stroke();
 
-        // 下部の名前
+        // 下部の結果（あみだくじをたどった結果）
+        const resultIndex = assignments[i];
         ctx.fillStyle = '#764ba2';
-        ctx.fillText(end[i], x, verticalEnd + 30);
+        ctx.fillText(start[resultIndex], x, verticalEnd + 30);
     }
 
     // 横線を描画
@@ -565,7 +576,7 @@ function startAnimation(startIndex) {
         }
 
         // 再描画
-        redrawCanvas(participants, assignments, currentCol, currentY);
+        redrawCanvas(participants, currentCol, currentY);
 
         // アニメーション継続判定
         if (currentY < verticalEnd) {
@@ -582,12 +593,20 @@ function startAnimation(startIndex) {
 // 結果を表示
 function showResult(startIndex, endIndex) {
     resultsDiv.style.display = 'block';
+    const resultName = participants[endIndex];
     resultsDiv.innerHTML = `
         <h3>結果</h3>
         <div class="result-item" style="font-size: 24px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-            ${participants[startIndex]} → ${assignments[endIndex]}
+            ${participants[startIndex]} → ${resultName}
         </div>
     `;
+
+    // 検証
+    if (participants[startIndex] === resultName) {
+        resultsDiv.innerHTML += `
+            <div class="error">エラー: 同じ人に当たっています。もう一度やり直してください。</div>
+        `;
+    }
 
     // ボタンを有効化
     const buttons = document.querySelectorAll('.choice-button');
@@ -606,6 +625,7 @@ function reset() {
     selectInstruction.style.display = 'block';
     selectInstruction.textContent = 'クジを選んでください';
     horizontalLinesData = [];
+    assignments = [];
 }
     </script>
 </body>
