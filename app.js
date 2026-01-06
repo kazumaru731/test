@@ -1,5 +1,8 @@
 // 参加者リスト
 let participants = [];
+let assignments = [];
+let horizontalLinesData = [];
+let canvasConfig = {};
 
 // DOM要素
 const participantNameInput = document.getElementById('participant-name');
@@ -11,6 +14,8 @@ const canvas = document.getElementById('amidakuji-canvas');
 const ctx = canvas.getContext('2d');
 const resultsDiv = document.getElementById('results');
 const resetBtn = document.getElementById('reset');
+const choiceButtonsDiv = document.getElementById('choice-buttons');
+const selectInstruction = document.querySelector('.select-instruction');
 
 // イベントリスナー
 addParticipantBtn.addEventListener('click', addParticipant);
@@ -53,21 +58,19 @@ function removeParticipant(index) {
 // 完全順列（derangement）を生成：自分以外の人に必ず当たる
 function generateDerangement(arr) {
     if (arr.length < 2) {
-        return null; // 2人未満では完全順列は不可能
+        return null;
     }
 
     let attempts = 0;
     const maxAttempts = 1000;
 
     while (attempts < maxAttempts) {
-        // Fisher-Yatesシャッフル
         const shuffled = [...arr];
         for (let i = shuffled.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
 
-        // 完全順列かチェック（誰も自分自身に当たっていない）
         let isDerangement = true;
         for (let i = 0; i < arr.length; i++) {
             if (arr[i] === shuffled[i]) {
@@ -83,7 +86,20 @@ function generateDerangement(arr) {
         attempts++;
     }
 
-    return null; // 完全順列が見つからなかった場合
+    return null;
+}
+
+// レスポンシブ対応のキャンバスサイズを計算
+function calculateCanvasSize(n) {
+    const containerWidth = document.querySelector('.container').offsetWidth;
+    const maxWidth = Math.min(containerWidth - 40, 900);
+
+    // スマホ対応
+    const isMobile = window.innerWidth <= 768;
+    const canvasWidth = isMobile ? maxWidth : Math.max(600, n * 120);
+    const canvasHeight = isMobile ? 400 : 500;
+
+    return { width: canvasWidth, height: canvasHeight };
 }
 
 // あみだくじを開始
@@ -93,40 +109,95 @@ function startAmidakuji() {
         return;
     }
 
-    // 完全順列を生成
-    const assignments = generateDerangement(participants);
+    assignments = generateDerangement(participants);
 
     if (!assignments) {
         alert('割り当ての生成に失敗しました。もう一度お試しください。');
         return;
     }
 
-    // キャンバスセクションを表示
     document.querySelector('.input-section').style.display = 'none';
     canvasSection.style.display = 'block';
 
-    // あみだくじを描画
     drawAmidakuji(participants, assignments);
+    createChoiceButtons();
+}
 
-    // 結果を表示
-    displayResults(participants, assignments);
+// 選択ボタンを生成
+function createChoiceButtons() {
+    choiceButtonsDiv.innerHTML = '';
+    selectInstruction.style.display = 'block';
+    resultsDiv.style.display = 'none';
+
+    participants.forEach((name, index) => {
+        const button = document.createElement('button');
+        button.className = 'choice-button';
+        button.textContent = name;
+        button.onclick = () => startAnimation(index);
+        choiceButtonsDiv.appendChild(button);
+    });
 }
 
 // あみだくじを描画
 function drawAmidakuji(start, end) {
     const n = start.length;
-    const canvasWidth = Math.max(600, n * 120);
-    const canvasHeight = 500;
-    canvas.width = canvasWidth;
-    canvas.height = canvasHeight;
+    const size = calculateCanvasSize(n);
+    canvas.width = size.width;
+    canvas.height = size.height;
 
-    const padding = 80;
-    const lineSpacing = (canvasWidth - 2 * padding) / (n - 1);
-    const verticalStart = 80;
-    const verticalEnd = canvasHeight - 80;
-    const horizontalLines = 8; // 横線の数
+    const padding = 60;
+    const lineSpacing = (size.width - 2 * padding) / (n - 1);
+    const verticalStart = 60;
+    const verticalEnd = size.height - 60;
+    const horizontalLinesCount = 10;
 
-    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    // 設定を保存
+    canvasConfig = {
+        n,
+        padding,
+        lineSpacing,
+        verticalStart,
+        verticalEnd,
+        horizontalLinesCount
+    };
+
+    // 横線データを生成
+    horizontalLinesData = [];
+    const horizontalSpacing = (verticalEnd - verticalStart) / (horizontalLinesCount + 1);
+
+    for (let i = 1; i <= horizontalLinesCount; i++) {
+        const y = verticalStart + i * horizontalSpacing;
+        const startCol = Math.floor(Math.random() * (n - 1));
+        horizontalLinesData.push({
+            y,
+            startCol,
+            endCol: startCol + 1
+        });
+    }
+
+    // 追加の横線
+    for (let i = 1; i <= horizontalLinesCount; i++) {
+        const y = verticalStart + i * horizontalSpacing + horizontalSpacing / 2;
+        const startCol = Math.floor(Math.random() * (n - 1));
+        horizontalLinesData.push({
+            y,
+            startCol,
+            endCol: startCol + 1
+        });
+    }
+
+    // 横線をY座標でソート
+    horizontalLinesData.sort((a, b) => a.y - b.y);
+
+    // 描画
+    redrawCanvas(start, end);
+}
+
+// キャンバスを再描画
+function redrawCanvas(start, end, highlightCol = -1, currentY = -1) {
+    const { n, padding, lineSpacing, verticalStart, verticalEnd } = canvasConfig;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 3;
     ctx.font = 'bold 16px sans-serif';
@@ -141,6 +212,8 @@ function drawAmidakuji(start, end) {
         ctx.fillText(start[i], x, verticalStart - 30);
 
         // 縦線
+        ctx.strokeStyle = '#ddd';
+        ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(x, verticalStart);
         ctx.lineTo(x, verticalEnd);
@@ -151,60 +224,97 @@ function drawAmidakuji(start, end) {
         ctx.fillText(end[i], x, verticalEnd + 30);
     }
 
-    // 横線をランダムに描画
-    const horizontalSpacing = (verticalEnd - verticalStart) / (horizontalLines + 1);
-
-    for (let i = 1; i <= horizontalLines; i++) {
-        const y = verticalStart + i * horizontalSpacing;
-
-        // ランダムに横線を配置
-        const startCol = Math.floor(Math.random() * (n - 1));
-        const x1 = padding + startCol * lineSpacing;
-        const x2 = padding + (startCol + 1) * lineSpacing;
+    // 横線を描画
+    horizontalLinesData.forEach(line => {
+        const x1 = padding + line.startCol * lineSpacing;
+        const x2 = padding + line.endCol * lineSpacing;
 
         ctx.strokeStyle = '#ff6b6b';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.moveTo(x1, y);
-        ctx.lineTo(x2, y);
+        ctx.moveTo(x1, line.y);
+        ctx.lineTo(x2, line.y);
         ctx.stroke();
-    }
+    });
 
-    // 追加の横線でより複雑に
-    for (let i = 1; i <= horizontalLines; i++) {
-        const y = verticalStart + i * horizontalSpacing + horizontalSpacing / 2;
-
-        const startCol = Math.floor(Math.random() * (n - 1));
-        const x1 = padding + startCol * lineSpacing;
-        const x2 = padding + (startCol + 1) * lineSpacing;
-
-        ctx.strokeStyle = '#4ecdc4';
-        ctx.lineWidth = 2;
+    // 現在の位置をハイライト
+    if (highlightCol >= 0 && currentY >= 0) {
+        const x = padding + highlightCol * lineSpacing;
+        ctx.fillStyle = '#ff6b6b';
         ctx.beginPath();
-        ctx.moveTo(x1, y);
-        ctx.lineTo(x2, y);
-        ctx.stroke();
+        ctx.arc(x, currentY, 8, 0, Math.PI * 2);
+        ctx.fill();
     }
 }
 
-// 結果を表示
-function displayResults(start, end) {
-    resultsDiv.innerHTML = '<h3>結果</h3>';
+// アニメーション開始
+function startAnimation(startIndex) {
+    // ボタンを無効化
+    const buttons = document.querySelectorAll('.choice-button');
+    buttons.forEach(btn => btn.disabled = true);
+    selectInstruction.style.display = 'none';
 
-    for (let i = 0; i < start.length; i++) {
-        const resultItem = document.createElement('div');
-        resultItem.className = 'result-item';
-        resultItem.textContent = `${start[i]} → ${end[i]}`;
-        resultsDiv.appendChild(resultItem);
+    let currentCol = startIndex;
+    let currentY = canvasConfig.verticalStart;
+    const speed = 3;
+    let lineIndex = 0;
+
+    function animate() {
+        const { padding, lineSpacing, verticalStart, verticalEnd } = canvasConfig;
+
+        // 現在の位置を更新
+        currentY += speed;
+
+        // 横線との交差チェック
+        while (lineIndex < horizontalLinesData.length) {
+            const line = horizontalLinesData[lineIndex];
+
+            if (Math.abs(currentY - line.y) < speed) {
+                // 横線に到達
+                if (currentCol === line.startCol) {
+                    currentCol = line.endCol;
+                } else if (currentCol === line.endCol) {
+                    currentCol = line.startCol;
+                }
+                lineIndex++;
+                break;
+            } else if (currentY < line.y) {
+                break;
+            } else {
+                lineIndex++;
+            }
+        }
+
+        // 再描画
+        redrawCanvas(participants, assignments, currentCol, currentY);
+
+        // アニメーション継続判定
+        if (currentY < verticalEnd) {
+            requestAnimationFrame(animate);
+        } else {
+            // アニメーション終了
+            showResult(startIndex, currentCol);
+        }
     }
 
-    // 検証メッセージ
-    const verification = document.createElement('p');
-    verification.style.marginTop = '20px';
-    verification.style.color = '#2ecc71';
-    verification.style.fontWeight = 'bold';
-    verification.textContent = '✓ 全員が自分以外の人に当たりました！';
-    resultsDiv.appendChild(verification);
+    animate();
+}
+
+// 結果を表示
+function showResult(startIndex, endIndex) {
+    resultsDiv.style.display = 'block';
+    resultsDiv.innerHTML = `
+        <h3>結果</h3>
+        <div class="result-item" style="font-size: 24px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+            ${participants[startIndex]} → ${assignments[endIndex]}
+        </div>
+    `;
+
+    // ボタンを有効化
+    const buttons = document.querySelectorAll('.choice-button');
+    buttons.forEach(btn => btn.disabled = false);
+    selectInstruction.style.display = 'block';
+    selectInstruction.textContent = 'もう一度選ぶ、またはやり直してください';
 }
 
 // リセット
@@ -213,4 +323,8 @@ function reset() {
     canvasSection.style.display = 'none';
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     resultsDiv.innerHTML = '';
+    choiceButtonsDiv.innerHTML = '';
+    selectInstruction.style.display = 'block';
+    selectInstruction.textContent = 'クジを選んでください';
+    horizontalLinesData = [];
 }
