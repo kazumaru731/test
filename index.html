@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>あみだくじアプリ</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>あみだくじアプリ</h1>
+        <p class="description">自分以外の人に必ず当たるあみだくじを作成します</p>
+
+        <div class="input-section">
+            <h2>参加者を入力</h2>
+            <div class="participants-input">
+                <input type="text" id="participant-name" placeholder="名前を入力（例：A）">
+                <button id="add-participant">追加</button>
+            </div>
+            <div id="participants-list"></div>
+            <button id="start-amidakuji" class="main-button">あみだくじを開始</button>
+        </div>
+
+        <div class="canvas-section" id="canvas-section" style="display: none;">
+            <h2>あみだくじ</h2>
+            <canvas id="amidakuji-canvas"></canvas>
+            <div class="results" id="results"></div>
+            <button id="reset" class="main-button">やり直す</button>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
