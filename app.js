@@ -229,10 +229,9 @@ function redrawCanvas(start, highlightCol = -1, currentY = -1) {
         ctx.lineTo(x, verticalEnd);
         ctx.stroke();
 
-        // 下部の結果（あみだくじをたどった結果）
-        const resultIndex = assignments[i];
+        // 下部の名前（上部と同じ順序）
         ctx.fillStyle = '#764ba2';
-        ctx.fillText(start[resultIndex], x, verticalEnd + 30);
+        ctx.fillText(start[i], x, verticalEnd + 30);
     }
 
     // 横線を描画
