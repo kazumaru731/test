@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>あみだくじアプリ</title>
+    <style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+}
+
+.container {
+    background: white;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    padding: 40px;
+    max-width: 900px;
+    width: 100%;
+}
+
+h1 {
+    color: #333;
+    text-align: center;
+    margin-bottom: 10px;
+    font-size: 2.5em;
+}
+
+.description {
+    text-align: center;
+    color: #666;
+    margin-bottom: 30px;
+}
+
+h2 {
+    color: #444;
+    margin-bottom: 20px;
+    font-size: 1.5em;
+}
+
+.input-section {
+    margin-bottom: 30px;
+}
+
+.participants-input {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+#participant-name {
+    flex: 1;
+    padding: 12px 20px;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+    transition: border-color 0.3s;
+}
+
+#participant-name:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+button {
+    padding: 12px 24px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: background 0.3s, transform 0.1s;
+}
+
+button:hover {
+    background: #5568d3;
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+.main-button {
+    width: 100%;
+    padding: 15px;
+    font-size: 18px;
+    font-weight: bold;
+    margin-top: 20px;
+}
+
+#participants-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+    min-height: 40px;
+}
+
+.participant-tag {
+    background: #f0f0f0;
+    padding: 8px 16px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.participant-tag .remove {
+    background: #ff4757;
+    color: white;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.participant-tag .remove:hover {
+    background: #e84118;
+}
+
+.canvas-section {
+    text-align: center;
+}
+
+#amidakuji-canvas {
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    margin: 20px auto;
+    display: block;
+    background: white;
+    max-width: 100%;
+    height: auto;
+}
+
+.results {
+    margin: 20px 0;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 10px;
+}
+
+.result-item {
+    padding: 10px;
+    margin: 10px 0;
+    background: white;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: bold;
+    color: #333;
+}
+
+.error {
+    color: #ff4757;
+    text-align: center;
+    padding: 10px;
+    margin: 10px 0;
+    background: #ffe0e0;
+    border-radius: 8px;
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>あみだくじアプリ</h1>
+        <p class="description">自分以外の人に必ず当たるあみだくじを作成します</p>
+
+        <div class="input-section">
+            <h2>参加者を入力</h2>
+            <div class="participants-input">
+                <input type="text" id="participant-name" placeholder="名前を入力（例：A）">
+                <button id="add-participant">追加</button>
+            </div>
+            <div id="participants-list"></div>
+            <button id="start-amidakuji" class="main-button">あみだくじを開始</button>
+        </div>
+
+        <div class="canvas-section" id="canvas-section" style="display: none;">
+            <h2>あみだくじ</h2>
+            <canvas id="amidakuji-canvas"></canvas>
+            <div class="results" id="results"></div>
+            <button id="reset" class="main-button">やり直す</button>
+        </div>
+    </div>
+
+    <script>
+// 参加者リスト
+let participants = [];
+
+// DOM要素
+const participantNameInput = document.getElementById('participant-name');
+const addParticipantBtn = document.getElementById('add-participant');
+const participantsList = document.getElementById('participants-list');
+const startBtn = document.getElementById('start-amidakuji');
+const canvasSection = document.getElementById('canvas-section');
+const canvas = document.getElementById('amidakuji-canvas');
+const ctx = canvas.getContext('2d');
+const resultsDiv = document.getElementById('results');
+const resetBtn = document.getElementById('reset');
+
+// イベントリスナー
+addParticipantBtn.addEventListener('click', addParticipant);
+participantNameInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') addParticipant();
+});
+startBtn.addEventListener('click', startAmidakuji);
+resetBtn.addEventListener('click', reset);
+
+// 参加者を追加
+function addParticipant() {
+    const name = participantNameInput.value.trim();
+    if (name && !participants.includes(name)) {
+        participants.push(name);
+        participantNameInput.value = '';
+        renderParticipants();
+    }
+}
+
+// 参加者リストを描画
+function renderParticipants() {
+    participantsList.innerHTML = '';
+    participants.forEach((name, index) => {
+        const tag = document.createElement('div');
+        tag.className = 'participant-tag';
+        tag.innerHTML = `
+            <span>${name}</span>
+            <span class="remove" onclick="removeParticipant(${index})">×</span>
+        `;
+        participantsList.appendChild(tag);
+    });
+}
+
+// 参加者を削除
+function removeParticipant(index) {
+    participants.splice(index, 1);
+    renderParticipants();
+}
+
+// 完全順列（derangement）を生成：自分以外の人に必ず当たる
+function generateDerangement(arr) {
+    if (arr.length < 2) {
+        return null;
+    }
+
+    let attempts = 0;
+    const maxAttempts = 1000;
+
+    while (attempts < maxAttempts) {
+        const shuffled = [...arr];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+
+        let isDerangement = true;
+        for (let i = 0; i < arr.length; i++) {
+            if (arr[i] === shuffled[i]) {
+                isDerangement = false;
+                break;
+            }
+        }
+
+        if (isDerangement) {
+            return shuffled;
+        }
+
+        attempts++;
+    }
+
+    return null;
+}
+
+// あみだくじを開始
+function startAmidakuji() {
+    if (participants.length < 2) {
+        alert('参加者は2人以上必要です');
+        return;
+    }
+
+    const assignments = generateDerangement(participants);
+
+    if (!assignments) {
+        alert('割り当ての生成に失敗しました。もう一度お試しください。');
+        return;
+    }
+
+    document.querySelector('.input-section').style.display = 'none';
+    canvasSection.style.display = 'block';
+
+    drawAmidakuji(participants, assignments);
+    displayResults(participants, assignments);
+}
+
+// あみだくじを描画
+function drawAmidakuji(start, end) {
+    const n = start.length;
+    const canvasWidth = Math.max(600, n * 120);
+    const canvasHeight = 500;
+    canvas.width = canvasWidth;
+    canvas.height = canvasHeight;
+
+    const padding = 80;
+    const lineSpacing = (canvasWidth - 2 * padding) / (n - 1);
+    const verticalStart = 80;
+    const verticalEnd = canvasHeight - 80;
+    const horizontalLines = 8;
+
+    ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 3;
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+
+    for (let i = 0; i < n; i++) {
+        const x = padding + i * lineSpacing;
+
+        ctx.fillStyle = '#667eea';
+        ctx.fillText(start[i], x, verticalStart - 30);
+
+        ctx.beginPath();
+        ctx.moveTo(x, verticalStart);
+        ctx.lineTo(x, verticalEnd);
+        ctx.stroke();
+
+        ctx.fillStyle = '#764ba2';
+        ctx.fillText(end[i], x, verticalEnd + 30);
+    }
+
+    const horizontalSpacing = (verticalEnd - verticalStart) / (horizontalLines + 1);
+
+    for (let i = 1; i <= horizontalLines; i++) {
+        const y = verticalStart + i * horizontalSpacing;
+        const startCol = Math.floor(Math.random() * (n - 1));
+        const x1 = padding + startCol * lineSpacing;
+        const x2 = padding + (startCol + 1) * lineSpacing;
+
+        ctx.strokeStyle = '#ff6b6b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x2, y);
+        ctx.stroke();
+    }
+
+    for (let i = 1; i <= horizontalLines; i++) {
+        const y = verticalStart + i * horizontalSpacing + horizontalSpacing / 2;
+        const startCol = Math.floor(Math.random() * (n - 1));
+        const x1 = padding + startCol * lineSpacing;
+        const x2 = padding + (startCol + 1) * lineSpacing;
+
+        ctx.strokeStyle = '#4ecdc4';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x2, y);
+        ctx.stroke();
+    }
+}
+
+// 結果を表示
+function displayResults(start, end) {
+    resultsDiv.innerHTML = '<h3>結果</h3>';
+
+    for (let i = 0; i < start.length; i++) {
+        const resultItem = document.createElement('div');
+        resultItem.className = 'result-item';
+        resultItem.textContent = `${start[i]} → ${end[i]}`;
+        resultsDiv.appendChild(resultItem);
+    }
+
+    const verification = document.createElement('p');
+    verification.style.marginTop = '20px';
+    verification.style.color = '#2ecc71';
+    verification.style.fontWeight = 'bold';
+    verification.textContent = '✓ 全員が自分以外の人に当たりました！';
+    resultsDiv.appendChild(verification);
+}
+
+// リセット
+function reset() {
+    document.querySelector('.input-section').style.display = 'block';
+    canvasSection.style.display = 'none';
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    resultsDiv.innerHTML = '';
+}
+    </script>
+</body>
+</html>
